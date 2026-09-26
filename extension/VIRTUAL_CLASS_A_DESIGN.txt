@@ -1,0 +1,79 @@
+YURIKA Audio 3.2.7 - Internal C++/WASM Class-A Virtual Amplifier
+
+PURPOSE
+This is an internal Chrome-extension audio stage, not a Windows audio endpoint and not a hardware power amplifier.
+It is a software reference electrical model that adds a very small Class-A-style residual after YURIKA's main DSP and before final limiter/safety.
+
+SIGNAL FLOW
+YURIKA DSP -> 3D Spatial -> Auto Level -> Adaptive Trim -> Virtual Class-A Amp -> Limiter -> Safety Meter -> Master Safety -> A/V Sync -> Output
+
+REFERENCE SPECIFICATION
+- Topology: Ultra-Clean Class-A / crossover-free software model
+- Rated reference: 8 W/ch into 6 ohms
+- Practical simulated maximum: 12 W/ch into 6 ohms
+- Reference mapping: 0 dBFS = 12 W/ch model maximum; -1.7609 dBFS = 8 W/ch model rated level
+- Output impedance reference: 0.020 ohm
+- Damping factor reference: 300 at 6 ohms
+- S/N target: 122 dB(A)
+- Amp-only THD+N target: -100 dB (0.001%) at rated reference
+- Crosstalk reference: <= -120 dB at 1 kHz
+- Slew-rate equivalent: 25 V/us
+- DC offset guard reference: <= 0.2 mV equivalent
+- Frequency response: inherits the existing YURIKA DSP; no amp EQ; <= 0.02 dB added amplitude deviation target, 20 Hz-20 kHz
+- Amp algorithmic latency: 0 frames; no lookahead, convolution, or internal resampling
+- Enable/disable transition: 6 ms wet/dry ramp for click suppression; this is not a delay line
+
+IMPORTANT POWER NOTE
+The wattage, load impedance, damping factor, output impedance, slew-rate and DC-offset values are software reference-model specifications.
+They do not mean the PC physically delivers 8 W or 12 W into a 6-ohm speaker/headphone load.
+
+THD+N COMPOSITION
+The amp residual is added to the already-processed audio samples. It does not replace YURIKA's upstream THD+N.
+For reporting two independent THD+N ratios in dB, the model helper uses power-domain composition:
+  combined_dB = 10*log10(10^(upstream_dB/10) + 10^(amp_dB/10))
+Examples with the measured amp contribution near -99.96 dB:
+- Upstream -64.62 dB -> combined about -64.619 dB
+- Upstream -53.71 dB -> combined about -53.710 dB
+
+C++ / WASM IMPLEMENTATION
+- Source: virtual-amp-core.cpp
+- Runtime: virtual-amp-core.wasm
+- Worklet: virtual-amp-worklet.js
+- Host wrapper: virtual-amp.js
+- No dynamic allocation in the C++ audio loop
+- No lookahead / FFT / convolution / resampling in the amp core
+- Bounded NaN/Inf/denormal handling
+- Tiny cubic residual, deterministic low-level noise, and -120 dB-class channel coupling
+
+AUTO APPLY
+virtualAmpEnabled defaults ON and is persisted with YURIKA settings.
+Once YURIKA processing starts, the amp stage is prepared automatically.
+Neutral (Flat) automatically sets the amp wet mix to 0 to preserve the existing Neutral transparency gate.
+
+FAILURE BEHAVIOR
+- WASM fetch/compile failure: unity Gain bypass
+- AudioWorklet creation failure: unity Gain bypass
+- Runtime exception/non-finite failure: worklet returns dry input
+- UI/Diagnostics show backend, ACTIVE/BYPASS state, and Amp Fault reason
+This is fail-open behavior for audio continuity; final limiter/safety remain downstream.
+
+LOCAL NUMERICAL CHECK
+At 48 kHz, 1 kHz sine, 8 W reference amplitude sqrt(8/12):
+- measured amp-only THD+N: about -99.964 dB
+- fundamental gain deviation: about +0.000269 dB
+- no clipping in the test
+
+LATENCY
+The amp algorithm does not insert a delay buffer. It runs in the normal AudioWorklet render quantum.
+The extension still depends on the browser/device baseLatency/outputLatency. The design target remains around the existing ~6 ms DSP figure where the platform permits it.
+
+BUILD USED
+clang++ --target=wasm32 -O3 -nostdlib -fno-exceptions -fno-rtti \
+  -Wl,--no-entry \
+  -Wl,--export=amp_buffer -Wl,--export=amp_reset -Wl,--export=amp_set_enabled \
+  -Wl,--export=amp_set_model -Wl,--export=amp_process \
+  -Wl,--export-memory -Wl,--initial-memory=131072 -Wl,--max-memory=131072 \
+  -o virtual-amp-core.wasm virtual-amp-core.cpp
+
+KNOWN LIMITATION
+The C++/WASM numerical core and static extension integration were tested locally. A real installed Chrome run is still required to confirm AudioWorklet + WebAssembly runtime behavior on the user's exact Chrome/Windows/audio-device combination.

@@ -1,0 +1,8 @@
+YURIKA Audio 3.3.1 - Adaptive Safety Stability
+
+- Pressure attack unchanged: -0.25 dB steps after sustained limiter/peak pressure.
+- Adaptive trim release no longer occurs during active program audio.
+- Release is allowed only after 8 consecutive quiet safety ticks (peak < 0.08 OR RMS < -42 dBFS).
+- Quiet release step: +0.10 dB with 0.45 s ramp.
+- New diagnostics: adaptiveTrimHoldReason, adaptiveTrimQuietStreak, adaptiveTrimLastPressureAtMs, adaptiveTrimReleaseCount.
+- Self-DAP coefficients, HRTF, Spatial and Virtual Amp coefficients unchanged.

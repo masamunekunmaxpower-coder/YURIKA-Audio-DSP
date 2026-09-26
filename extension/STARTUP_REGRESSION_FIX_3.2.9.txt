@@ -1,0 +1,10 @@
+YURIKA Audio 3.2.9 startup regression fix
+
+Root cause:
+- offscreen.js called createNoiseNode(ctx), createSafetyMeterNode(ctx), and createSparkMonitorNode(ctx) while package builds 3.2.6-3.2.8 omitted those helper definitions.
+- GitHub audio-quality runtime surfaced the first downstream DSP start error as: createNoiseNode is not defined.
+
+Fix:
+- Restored all three canonical AudioWorklet helper functions from the last known-good 3.2.5 implementation.
+- Each helper remains fail-open to a unity GainNode when the optional worklet cannot load.
+- No DSP coefficients, Spatial/HRTF parameters, Virtual Amp coefficients, or C++/WASM SDK ABI changed.

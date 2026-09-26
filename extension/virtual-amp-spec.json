@@ -1,0 +1,25 @@
+{
+  "id": "yurika-class-a-reference-v1",
+  "modelType": "software reference electrical model",
+  "topology": "Ultra-Clean Class-A / crossover-free",
+  "loadOhm": 6,
+  "ratedPowerWPerChannel": 8,
+  "practicalSimulatedMaxPowerWPerChannel": 12,
+  "zeroDbfsReferencePowerWPerChannel": 12,
+  "ratedReferenceLevelDbfs": -1.7609,
+  "outputImpedanceOhm": 0.02,
+  "dampingFactorAt6Ohm": 300,
+  "snrDbA": 122,
+  "ampOnlyThdnDbAtRatedReference": -100,
+  "crosstalkDbAt1k": -120,
+  "slewRateEquivalentVPerUs": 25,
+  "dcOffsetEquivalentMvMax": 0.2,
+  "frequencyResponse": "inherits YURIKA DSP; amp deviation <= 0.02 dB from 20 Hz to 20 kHz",
+  "algorithmicLatencyFrames": 0,
+  "enableDisableTransitionMs": 6,
+  "notes": [
+    "Power figures are software reference values and do not mean the PC physically delivers this wattage to a 6-ohm load.",
+    "Amp residual distortion/noise is added to the existing processed signal; combined THD+N is a power-domain composition, not a replacement measurement.",
+    "Neutral (Flat) automatically bypasses amp residuals to preserve the existing transparency gate."
+  ]
+}

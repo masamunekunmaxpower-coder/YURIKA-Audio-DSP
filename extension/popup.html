@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YURIKA Audio DSP</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div><h1>YURIKA Audio</h1><p>Advanced YouTube DSP + Virtual DAP / Local only</p></div>
+      <label class="switch" aria-label="音質改善のオンオフ"><input id="enabled" type="checkbox"><span></span></label>
+    </header>
+
+    <section class="status" id="status">状態確認中…</section>
+
+
+    <details open class="spatial-panel">
+      <summary>3D Spatial Ecosystem</summary>
+      <section class="row">
+        <label class="check spatial-master"><input id="spatialEnabled" type="checkbox"> 3D SPATIAL</label>
+        <label>Mode<select id="spatialMode"><option value="auto">AUTO</option><option value="natural">NATURAL</option><option value="wide">WIDE</option><option value="deep">DEEP</option></select></label>
+      </section>
+      <section class="row">
+        <label>Final Output<select id="spatialOutputTarget">
+          <option value="local">Local device</option><option value="sonobus-mobile-headphones">SonoBus → Smartphone Headphones/IEM</option><option value="sonobus-mobile-speaker">SonoBus → Smartphone Speaker</option>
+        </select></label>
+        <label>Device Profile<select id="spatialDeviceProfile">
+          <option value="auto">Auto</option><option value="generic-headphone">Generic Headphone</option><option value="generic-iem">Generic IEM</option><option value="generic-earbuds">Generic Earbuds</option><option value="generic-stereo-speaker">Stereo Speaker</option><option value="laptop-speaker">Laptop Speaker</option><option value="tv">TV</option><option value="bluetooth-speaker">Bluetooth Speaker</option><option value="studio-monitor">Studio Monitor</option><option value="sennheiser-hd600">HD600</option><option value="sony-wh1000xm5">WH-1000XM5</option><option value="airpods-family">AirPods family</option><option value="sonobus-mobile-binaural">SonoBus Mobile Binaural</option><option value="remote-smartphone-speaker">Remote Smartphone Speaker</option>
+        </select></label>
+        <button id="spatialSelectOutput" type="button" class="secondary">出力デバイス選択</button>
+      </section>
+      <section class="status" id="spatialOutputState">Output: Default / Profile: Auto</section>
+      <p class="note">既存DSPの後段・Safety/Limiterの前に独立追加します。OFF時は旧DSPをDry経路で通し、ON/OFFは短いequal-power遷移。SonoBus → Smartphone Headphones/IEMでは外部HRTFデータ不要の軽量パラメトリックHRTFを自動適用します。ブラウザーからSonoBusの遠隔端末そのものは検出できないため、PC側の出力先（例: 仮想オーディオ経路）は「出力デバイス選択」で指定します。</p>
+    </details>
+
+    <details open class="virtual-amp-panel">
+      <summary>Virtual Class-A Amplifier</summary>
+      <section class="row">
+        <label class="check"><input id="virtualAmpEnabled" type="checkbox"> Internal Class-A Amp / Auto Apply</label>
+      </section>
+      <section class="status" id="virtualAmpState">Amp: status pending</section>
+      <div class="amp-spec-grid">
+        <span>Reference rated</span><strong>8 W/ch @ 6Ω</strong>
+        <span>Practical max</span><strong>12 W/ch @ 6Ω</strong>
+        <span>S/N</span><strong>122 dB(A)</strong>
+        <span>Amp THD+N add</span><strong>-100 dB nominal</strong>
+        <span>Output Z / DF</span><strong>0.020Ω / 300</strong>
+        <span>Latency</span><strong>0-frame algorithmic</strong>
+      </div>
+      <p class="note">C++→WebAssemblyでAudioWorklet内に常駐するソフトウェア基準モデルです。物理的にPCが6Ωへ8W/12Wを出力する意味ではありません。周波数特性は既存YURIKA DSPを継承し、追加EQは行いません。WASM/Worklet失敗時は自動BYPASSして音を止めず、状態と理由をここに表示します。Neutral (Flat)では既存の透明性ゲートを守るため残留歪み/ノイズを自動BYPASSします。</p>
+    </details>
+
+    <section>
+      <label class="label" for="preset">プリセット</label>
+      <select id="preset">
+        <option value="flat">Neutral (Flat)</option><option value="clean">Clean</option><option value="music">Music</option>
+        <option value="voice">Voice</option><option value="night">Night</option><option value="studio">Studio Hi-Res</option>
+        <option value="immersive">Immersive</option><option value="selfdap">Self DAP Reference</option><option value="custom" hidden>Custom</option>
+      </select>
+      <p class="layer-note">プリセットは調整の土台として固定されます。EQ / Advanced DSPを微調整しても選択中のプリセット名とVirtual DAP / Self DAP / Perspective設定は保持されます。</p>
+    </section>
+
+    <details open>
+      <summary>基本音質</summary>
+      <section class="sliders compact">
+        <label>低域 <output id="bassDbOut">0 dB</output><input id="bassDb" type="range" min="-6" max="6" step="0.1"></label>
+        <label>厚み <output id="warmthDbOut">0 dB</output><input id="warmthDb" type="range" min="-6" max="6" step="0.1"></label>
+        <label>明瞭度 <output id="clarityDbOut">0 dB</output><input id="clarityDb" type="range" min="-6" max="6" step="0.1"></label>
+        <label>空気感 <output id="airDbOut">0 dB</output><input id="airDb" type="range" min="-6" max="6" step="0.1"></label>
+        <label>出力 <output id="outputDbOut">0 dB</output><input id="outputDb" type="range" min="-12" max="6" step="0.1"></label>
+      </section>
+    </details>
+
+    <details open>
+      <summary>Advanced DSP</summary>
+      <section class="sliders compact">
+        <label>解像感 Detail <output id="detailOut">0</output><input id="detail" type="range" min="0" max="100" step="0.1"></label>
+        <label>広がり Width <output id="widthOut">0</output><input id="width" type="range" min="0" max="100" step="0.1"></label>
+        <label>リアリティ <output id="realityOut">0</output><input id="reality" type="range" min="0" max="100" step="0.1"></label>
+        <label>ノイズ抑制 <output id="noiseReductionOut">0</output><input id="noiseReduction" type="range" min="0" max="100" step="0.1"></label>
+        <label>周波数補正 <output id="spectralFillOut">0</output><input id="spectralFill" type="range" min="0" max="100" step="0.1"></label>
+      </section>
+    </details>
+
+    <details open>
+      <summary>Perspective Depth / 遠近法</summary>
+      <section class="row">
+        <label class="check"><input id="perspectiveEnabled" type="checkbox"> Perspective</label>
+        <label class="dap-strength">奥行き <output id="perspectiveDepthOut">0</output><input id="perspectiveDepth" type="range" min="0" max="100" step="0.1"></label>
+      </section>
+      <p class="note">Widthが左右方向、Perspectiveが前後方向です。直達音を保ちながら、低域を切った暗めの初期反射を少量だけ並列追加して奥行きを作ります。個々の楽器や声を分離して距離指定する機能ではありません。</p>
+    </details>
+
+    <details open>
+      <summary>Virtual DAP Output</summary>
+      <section class="row">
+        <label>DAPモード
+          <select id="dapMode">
+            <option value="off">Off</option>
+            <option value="reference">Reference</option>
+            <option value="warm">Warm</option>
+            <option value="natural">Natural Stage</option>
+            <option value="tube">Tube</option>
+          </select>
+        </label>
+        <label class="dap-strength">強度 <output id="dapStrengthOut">0</output><input id="dapStrength" type="range" min="0" max="100" step="0.1"></label>
+      </section>
+      <p class="note">Virtual DAPはブラウザ内部の仮想DAC/AMP風出力段です。Referenceはほぼ中立、Warmは穏やかな低域/高域傾斜、Natural Stageは低域中心のクロスフィード、Tubeはごく軽い倍音を加えます。OSの仮想サウンドデバイスや実機DAP/DACの完全再現ではありません。</p>
+    </details>
+
+    <details open>
+      <summary>自作DAPシステム</summary>
+      <section class="row">
+        <label class="check"><input id="selfDapEnabled" type="checkbox"> Self DAP Model</label>
+        <label>高域補完
+          <select id="selfDapRestoration"><option value="off">Off</option><option value="auto">Spectrum Auto</option><option value="on">On</option></select>
+        </label>
+      </section>
+      <section class="sliders compact">
+        <label>Self DAP 強度 <output id="selfDapStrengthOut">0</output><input id="selfDapStrength" type="range" min="0" max="100" step="0.1"></label>
+      </section>
+      <section class="row">
+        <label>補完開始帯域
+          <select id="selfDapRestorationCutoffKhz"><option value="9">9 kHz</option><option value="12">12 kHz</option><option value="14">14 kHz</option><option value="16">16 kHz</option><option value="18">18 kHz</option></select>
+        </label>
+        <span></span>
+      </section>
+      <p class="note self-dap-note" title="自作DAP設計をソフトウェアへ写像。ADAU1452系M/S処理、Side 100Hz HPF、約200µs位相調整、9〜18kHz可変高域補完、低歪みDAC/OPA1622/AB級出力段の設計思想を参考にしています。物理電源・ジッタ・実DACのアナログ特性そのものを再現する機能ではありません。">自作DAP設計をもとにした高域補完モデル。スペクトルの自然なつながりを優先し、9〜18 kHzを穏やかに補完します。</p>
+    </details>
+
+    <section class="row three">
+      <label>低域カット
+        <select id="lowCutHz"><option value="20">20 Hz</option><option value="28">28 Hz</option><option value="35">35 Hz</option><option value="50">50 Hz</option><option value="70">70 Hz</option></select>
+      </label>
+      <label class="check"><input id="compressor" type="checkbox"> 音量差補正</label>
+      <label class="check"><input id="hiResMode" type="checkbox"> Hi-Res / DSD-inspired</label>
+    </section>
+
+    <section class="row">
+      <label class="check"><input id="adaptiveSafetyEnabled" type="checkbox"> Adaptive Safety</label>
+      <span class="safety-hint">Limiter負荷が続く時だけ最大-3 dBまで自動trim</span>
+    </section>
+
+    <details open>
+      <summary>Scene Dynamics / Device & Spark</summary>
+      <section class="row">
+        <label class="check"><input id="sceneEnabled" type="checkbox"> Auto Scene</label>
+        <label>Output<select id="deviceProfile"><option value="headphone">Headphone</option><option value="stereo">Stereo Speaker</option><option value="smartphone">Smartphone</option><option value="tv">TV</option><option value="portable">Portable Speaker</option><option value="multispeaker">Multi-Speaker</option></select></label>
+      </section>
+      <section class="sliders compact">
+        <label>Scene 強度 <output id="sceneStrengthOut">55.0</output><input id="sceneStrength" type="range" min="0" max="100" step="0.1"></label>
+        <label>Dynamic Exponent <output id="sceneExponentOut">1.15</output><input id="sceneExponent" type="range" min="0.5" max="2.2" step="0.01"></label>
+        <label>Scene Inertia <output id="sceneInertiaOut">65.0</output><input id="sceneInertia" type="range" min="0" max="100" step="0.1"></label>
+      </section>
+      <section class="row">
+        <label class="check"><input id="sparkEnabled" type="checkbox"> Spark / 弾け</label>
+        <label class="dap-strength">Amount <output id="sparkAmountOut">45.0</output><input id="sparkAmount" type="range" min="0" max="100" step="0.1"></label>
+      </section>
+      <section class="row">
+        <label class="check"><input id="impactEnabled" type="checkbox"> Impact Liberation / 瞬発解放</label>
+        <label class="dap-strength">Punch <output id="impactAmountOut">65.0</output><input id="impactAmount" type="range" min="0" max="100" step="0.1"></label>
+      </section>
+      <section class="row">
+        <label class="check"><input id="seamNaturalizerEnabled" type="checkbox"> Seam Naturalizer / 継ぎ目自然化</label>
+        <label class="dap-strength">Blend <output id="seamNaturalizerAmountOut">55.0</output><input id="seamNaturalizerAmount" type="range" min="0" max="100" step="0.1"></label>
+      </section>
+      <section class="row">
+        <label class="check"><input id="transientValleyEnabled" type="checkbox"> Transient Valley / 谷型アタック</label>
+        <label class="dap-strength">Contrast <output id="transientValleyAmountOut">45.0</output><input id="transientValleyAmount" type="range" min="0" max="100" step="0.1"></label>
+      </section>
+      <section class="row">
+        <label class="check"><input id="transientEdgeEnabled" type="checkbox"> Transient Edge Accent / 鋭い縁</label>
+        <label class="dap-strength">Edge <output id="transientEdgeAmountOut">35.0</output><input id="transientEdgeAmount" type="range" min="0" max="100" step="0.1"></label>
+      </section>
+      <section class="row">
+        <label>Edge Tone<select id="transientEdgeTone"><option value="soft">Soft</option><option value="focused">Focused</option><option value="sharp">Sharp</option></select></label>
+        <span class="safety-hint">元信号の2.5–8kHz成分を極短時間だけ並列強調。白色ノイズ生成ではありません。</span>
+      </section>
+      <section class="row">
+        <label class="check"><input id="orbitKeeperEnabled" type="checkbox"> Orbit Keeper / 長期安定制御</label>
+        <span class="safety-hint">監視→微修正→段階復旧→安全縮退</span>
+      </section>
+      <section class="row">
+        <label class="check"><input id="multiSpeakerEnabled" type="checkbox"> Virtual Multi-Speaker</label>
+        <label class="dap-strength">Spread <output id="multiSpeakerAmountOut">45.0</output><input id="multiSpeakerAmount" type="range" min="0" max="100" step="0.1"></label>
+      </section>
+      <p class="note">7軸Scene DNAを連続推定し、5段階換算で78,125セル以上の演出状態を生成します。Impact LiberationはSpark検出時だけ1.4–9kHzの並列アタック経路を開きます。Seam Naturalizerは切り貼り・無理な発音加工の疑いが強い瞬間だけ中域の輪郭を小さく平滑化し、欠損音素は生成しません。Transient Valleyはピーク後に短い谷を作って相対アタックを強め、Edge Accentは元信号由来の帯域限定マイクロバーストで縁だけを補強します。Orbit Keeperは長期運転時の監視と段階復旧を行います。音声経路は組み替えず、既存Detail / Reality / Width / Perspective係数だけを制御します。Smartphoneは低域の無理な増幅を避け、70 Hz級の保護と中低域の知覚的な厚みを優先します。Virtual Multi-Speakerは2ch上の空間レンダリングで、実5.1出力を偽装しません。</p>
+    </details>
+
+    <details open>
+      <summary>Voice Material / Headphone Adaptation</summary>
+      <section class="row">
+        <label class="check"><input id="voiceMaterialEnabled" type="checkbox"> Voice Material Engine</label>
+        <label>Depth<select id="voiceDepthMode"><option value="shallow">Shallow / 浅い</option><option value="normal">Normal / 普通</option><option value="deep">Deep / 深い</option></select></label>
+      </section>
+      <section class="sliders compact">
+        <label>Voice Amount <output id="voiceMaterialAmountOut">55.0</output><input id="voiceMaterialAmount" type="range" min="0" max="100" step="0.1"></label>
+        <label>Transparency <output id="voiceTransparencyOut">45.0</output><input id="voiceTransparency" type="range" min="0" max="100" step="0.1"></label>
+        <label>Voice Air <output id="voiceAirOut">35.0</output><input id="voiceAir" type="range" min="0" max="100" step="0.1"></label>
+      </section>
+      <p class="note">Vocaloid / 人声を二値判定せず、speech-band・息成分・時間安定度から連続的な voiceConfidence / syntheticTendency を推定します。人物識別は行いません。Deepは単純なピッチ下げではなく、胸部感・奥行き・短い初期反射を増やします。</p>
+      <section class="row">
+        <label class="check"><input id="headphoneCorrectionEnabled" type="checkbox"> Headphone Model Correction</label>
+        <label>Model<select id="headphoneModel"><option value="generic-neutral">Generic / No correction</option><option value="sennheiser-hd600">Sennheiser HD 600</option><option value="sony-wh1000xm5">Sony WH-1000XM5</option></select></label>
+      </section>
+      <section class="sliders compact"><label>Correction Strength <output id="headphoneCorrectionStrengthOut">100.0</output><input id="headphoneCorrectionStrength" type="range" min="0" max="100" step="0.1"></label></section>
+      <section class="row">
+        <button id="autoDetectHeadphone" type="button">Auto Detect Output</button>
+        <button id="headphoneTestTone" type="button">Test Signal</button>
+      </section>
+      <section class="row">
+        <label class="check"><input id="headphoneCalibrationEnabled" type="checkbox"> Measurement Calibration</label>
+        <label>Calibration <output id="headphoneCalibrationStrengthOut">100.0</output><input id="headphoneCalibrationStrength" type="range" min="0" max="100" step="0.1"></label>
+      </section>
+      <section class="row">
+        <button id="headphoneCalibrate" type="button">Measure &amp; Calibrate</button>
+        <button id="headphoneCalibrationReset" type="button">Reset Calibration</button>
+      </section>
+      <p id="headphoneAutoState" class="note">Output: not selected / calibration: profile only</p>
+      <p class="note">Auto Detectはブラウザの出力選択ダイアログから得られた機器名を型番DBへ照合します。未知の型番はGenericへ安全に戻します。Test Signalだけでは物理周波数特性は測れません。Measure &amp; Calibrateは測定マイク/カプラをイヤーカップ近傍に置く実測モードで、8帯域の相対補正を各±3 dB以内に制限します。普通のPC/ヘッドセットマイクでは精度保証しません。</p>
+      <section class="row">
+        <label class="check"><input id="hrtfEnabled" type="checkbox"> HRTF Virtualization</label>
+        <label>HRTF<select id="hrtfProfile"><option value="natural">Natural</option><option value="near">Near</option><option value="wide">Wide</option><option value="front">Front Focus</option></select></label>
+      </section>
+      <section class="sliders compact"><label>HRTF Amount <output id="hrtfAmountOut">45.0</output><input id="hrtfAmount" type="range" min="0" max="100" step="0.1"></label></section>
+      <p class="note">型番補正はヘッドホン機種の周波数補正、HRTFは人間側の空間伝達です。両者を別系統で扱います。内蔵HRTFは汎用近似で、個人耳介を測定したPersonalized HRTFではありません。型番補正はOutput=Headphone時のみ有効です。</p>
+    </details>
+
+    <details>
+      <summary>Precision / Virtual DAC Matrix</summary>
+      <section class="row">
+        <label>DAC profile
+          <select id="dacMatrixMode"><option value="off">Off</option><option value="neutral">Neutral</option><option value="akm-inspired">AKM-inspired</option><option value="ess-inspired">ESS-inspired</option><option value="ti-slow-inspired">TI Slow-inspired</option><option value="fusion">Fusion</option></select>
+        </label>
+        <label class="dap-strength">強度 <output id="dacMatrixStrengthOut">0.0</output><input id="dacMatrixStrength" type="range" min="0" max="100" step="0.1"></label>
+      </section>
+      <section class="sliders compact">
+        <label>AKM比率 <output id="dacAkmWeightOut">34.0</output><input id="dacAkmWeight" type="range" min="0" max="100" step="0.1"></label>
+        <label>ESS比率 <output id="dacEssWeightOut">33.0</output><input id="dacEssWeight" type="range" min="0" max="100" step="0.1"></label>
+        <label>TI比率 <output id="dacTiWeightOut">33.0</output><input id="dacTiWeight" type="range" min="0" max="100" step="0.1"></label>
+      </section>
+      <p class="note">DAC Matrixは実DACチップの電気特性そのものではなく、フィルター傾向・微小倍音・出力ヘッドルームを組み合わせるデジタルプロファイルです。Fusion時のみ3比率を正規化して混合します。</p>
+    </details>
+
+    <details>
+      <summary>Room / ARTNOVION-inspired Engine</summary>
+      <section class="row">
+        <label class="check"><input id="roomEnabled" type="checkbox"> Room Engine</label>
+        <label>Mode<select id="roomMode"><option value="balanced">Balanced</option><option value="absorption">Absorption</option><option value="diffusion">Diffusion</option><option value="bass-control">Bass Control</option><option value="off">Off</option></select></label>
+      </section>
+      <section class="sliders compact"><label>Amount <output id="roomAmountOut">0.0</output><input id="roomAmount" type="range" min="0" max="100" step="0.1"></label></section>
+      <p class="note">物理吸音材・拡散材・ベーストラップを再現するものではありません。吸音/拡散/低域制御の設計目的を、低量の初期反射と帯域制御へ写像した仮想音場です。</p>
+    </details>
+
+    <details>
+      <summary>Integrity Engine / Transmission・Power・Ground</summary>
+      <section class="row">
+        <label class="check"><input id="integrityEnabled" type="checkbox"> Integrity</label>
+        <label>Mode<select id="integrityMode"><option value="transparent">Transparent</option><option value="network-stable">Network Stable</option><option value="ground-reference">Ground Reference</option><option value="stabilizer">Digital Stabilizer</option><option value="off">Off</option></select></label>
+      </section>
+      <section class="sliders compact"><label>Strength <output id="integrityStrengthOut">0.0</output><input id="integrityStrength" type="range" min="0" max="100" step="0.1"></label></section>
+      <p class="note">English Electric / SAEC / ロジウム電源 / Crystal Eop-G / Ortofon / PB-HR3000 / CS-3Kの物理効果を偽装せず、DC基準・パラメータ平滑化・watchdog・透明伝送というソフト側の対応可能部分へ変換します。</p>
+    </details>
+
+    <details open>
+      <summary>Auto Level / ワンタッチ音圧</summary>
+      <section class="row">
+        <label class="check"><input id="autoLevelEnabled" type="checkbox"> AUTO LEVEL</label>
+        <label>Target<select id="autoLevelProfile"><option value="quiet">Quiet -24 dBFS RMS</option><option value="reference">Reference -20</option><option value="dj">DJ -16</option><option value="custom">Custom</option></select></label>
+      </section>
+      <section class="sliders compact"><label>Custom target <output id="autoLevelTargetDbfsOut">-20.0 dBFS</output><input id="autoLevelTargetDbfs" type="range" min="-30" max="-12" step="0.1"></label></section>
+      <section class="button-grid"><button id="autoQuiet">Quiet</button><button id="autoReference">Reference</button><button id="autoDj">DJ Level</button><button id="autoOff" class="secondary">Auto OFF</button></section>
+      <p class="note">物理dB SPLではなく、デジタルRMSを基準に最大+6 / -12 dBでゆっくり補正します。LimiterとAdaptive Safetyが後段で保護します。</p>
+    </details>
+
+    <details open>
+      <summary>Spatial Telemetry / Reflection / A-V / Multi-Tab</summary>
+      <section class="row">
+        <label class="check"><input id="spatialTelemetryEnabled" type="checkbox"> ITD / ILD / IACC 診断</label>
+        <label class="check"><input id="reflectionCharacterEnabled" type="checkbox"> Reflection Character</label>
+      </section>
+      <section class="sliders compact">
+        <label>Reflection <output id="reflectionCharacterAmountOut">35.0</output><input id="reflectionCharacterAmount" type="range" min="0" max="100" step="0.1"></label>
+        <label>Character<select id="reflectionCharacterMode"><option value="subtle">Subtle</option><option value="balanced">Balanced</option><option value="lively">Lively</option></select></label>
+      </section>
+      <section class="row"><label class="check"><input id="avSyncEnabled" type="checkbox"> A/V Delay補正</label></section>
+      <section class="sliders compact"><label>Audio delay <output id="avSyncDelayMsOut">0.0 ms</output><input id="avSyncDelayMs" type="range" min="0" max="150" step="0.1"></label></section>
+      <p class="note">Reflection Characterは壁の物理反射率を変えません。A/V補正は音声が映像より先行するときだけ追加遅延で合わせます。OFF時は保存済みDelay値を実遅延・診断値へ加算しません。</p>
+      <section class="status" id="cpuSchedulerState">CPU scheduler: --</section>
+      <section class="status mix-action-status" id="mixActionStatus" data-state="idle">Mix操作: 待機中</section>
+      <div id="multiTabList" class="diagnostics"></div>
+      <button id="refreshTabs" class="secondary">YouTubeタブ一覧を更新</button>
+      <p class="note">各YouTubeタブを独立ON/OFFできます。ただしChromeのtabCapture仕様上、背景タブをいきなりキャプチャはできません。未登録タブは一度そのタブを前面に出してYURIKAを開くとCapture Readyになります。同時処理上限はCPU論理プロセッサ数から保守的に決めます。ブラウザのAudioWorkletを特定CPUコアへ固定する機能ではありません。</p>
+    </details>
+
+    <details>
+      <summary>DJ 2-Deck Mixer</summary>
+      <section class="button-grid"><button id="armDeckA">現在タブ → Deck A</button><button id="armDeckB">現在タブ → Deck B</button><button id="stopDeckA" class="secondary">A解除</button><button id="stopDeckB" class="secondary">B解除</button></section>
+      <section class="row"><label class="check"><input id="djEnabled" type="checkbox"> DJ Mix</label><span id="deckState" class="safety-hint">A: -- / B: --</span></section>
+      <section class="sliders compact">
+        <label>Crossfader A ←→ B <output id="djCrossfaderOut">0.0</output><input id="djCrossfader" type="range" min="-100" max="100" step="0.1"></label>
+        <label>Auto Mix 時間 <output id="djAutoMixSecondsOut">8.0 s</output><input id="djAutoMixSeconds" type="range" min="1" max="60" step="0.1"></label>
+        <label>Deck A Gain <output id="deckAGainDbOut">0.0 dB</output><input id="deckAGainDb" type="range" min="-18" max="12" step="0.1"></label>
+        <label>Deck B Gain <output id="deckBGainDbOut">0.0 dB</output><input id="deckBGainDb" type="range" min="-18" max="12" step="0.1"></label>
+        <label>A Low <output id="deckALowDbOut">0.0</output><input id="deckALowDb" type="range" min="-12" max="12" step="0.1"></label>
+        <label>A Mid <output id="deckAMidDbOut">0.0</output><input id="deckAMidDb" type="range" min="-12" max="12" step="0.1"></label>
+        <label>A High <output id="deckAHighDbOut">0.0</output><input id="deckAHighDb" type="range" min="-12" max="12" step="0.1"></label>
+        <label>B Low <output id="deckBLowDbOut">0.0</output><input id="deckBLowDb" type="range" min="-12" max="12" step="0.1"></label>
+        <label>B Mid <output id="deckBMidDbOut">0.0</output><input id="deckBMidDb" type="range" min="-12" max="12" step="0.1"></label>
+        <label>B High <output id="deckBHighDbOut">0.0</output><input id="deckBHighDb" type="range" min="-12" max="12" step="0.1"></label>
+      </section>
+      <section class="button-grid"><button id="autoMixAB">AUTO MIX A → B</button><button id="autoMixBA">AUTO MIX B → A</button></section>
+      <p class="note">Deck A/Bは現在前面にある通常Webタブを割り当てます。対象タブでYURIKAを開いた直後ならChromeのactiveTab許可を使ってArmできます。2つのタブを順番にArmして同時再生・EQ・equal-power crossfadeします。AUTO MIXは指定秒数で自動遷移します。Webページ自体の再生/一時停止やBPM/beat同期は操作しません。</p>
+    </details>
+
+    <details>
+      <summary>Virtual Cartridge Lab / AFE-10-inspired</summary>
+      <section class="row"><label class="check"><input id="cartridgeEnabled" type="checkbox"> Cartridge Lab</label><label>Output<select id="cartridgeMode"><option value="a">A</option><option value="b">B</option><option value="c">C</option><option value="mix">A+B+C Mix</option><option value="ab-split">A→L / B→R</option><option value="off">Off</option></select></label></section>
+      <section class="cartridge-grid">
+        <fieldset><legend>A</legend><label>R Ω<input id="cartridgeAResistance" type="number" min="900" max="100000" step="1"></label><label>C pF<input id="cartridgeACapacitance" type="number" min="0" max="1000" step="1"></label><label>Gain dB<input id="cartridgeAGainDb" type="number" min="-12" max="12" step="0.1"></label></fieldset>
+        <fieldset><legend>B</legend><label>R Ω<input id="cartridgeBResistance" type="number" min="900" max="100000" step="1"></label><label>C pF<input id="cartridgeBCapacitance" type="number" min="0" max="1000" step="1"></label><label>Gain dB<input id="cartridgeBGainDb" type="number" min="-12" max="12" step="0.1"></label></fieldset>
+        <fieldset><legend>C</legend><label>R Ω<input id="cartridgeCResistance" type="number" min="900" max="100000" step="1"></label><label>C pF<input id="cartridgeCCapacitance" type="number" min="0" max="1000" step="1"></label><label>Gain dB<input id="cartridgeCGainDb" type="number" min="-12" max="12" step="0.1"></label></fieldset>
+      </section>
+      <section class="sliders compact"><label>Mix A <output id="cartridgeMixAOut">100.0</output><input id="cartridgeMixA" type="range" min="0" max="100" step="0.1"></label><label>Mix B <output id="cartridgeMixBOut">0.0</output><input id="cartridgeMixB" type="range" min="0" max="100" step="0.1"></label><label>Mix C <output id="cartridgeMixCOut">0.0</output><input id="cartridgeMixC" type="range" min="0" max="100" step="0.1"></label></section>
+      <section class="button-grid one"><button id="startExternal">External / Phono Input</button></section>
+      <p class="note">R/CはADC後の仮想伝達モデルです。実カートリッジと負荷抵抗・容量の物理相互作用を完全再現しません。External InputはChromeのマイク/ライン入力許可を使う実験モードです。</p>
+    </details>
+
+    <details>
+      <summary>Audio Diagnostics</summary>
+      <section class="diagnostics" id="diagnostics">
+        <div><span>Peak</span><output id="diagPeak">--</output></div>
+        <div><span>RMS</span><output id="diagRms">--</output></div>
+        <div><span>L/R Corr</span><output id="diagCorr">--</output></div>
+        <div><span>Stereo</span><output id="diagStereo">--</output></div>
+        <div><span>ITD</span><output id="diagItd">--</output></div>
+        <div><span>ILD</span><output id="diagIld">--</output></div>
+        <div><span>IACC</span><output id="diagIacc">--</output></div>
+        <div><span>Localization cue error</span><output id="diagLocalization">--</output></div>
+        <div><span>HRTF cue</span><output id="diagHrtfCue">--</output></div>
+        <div><span>A/V latency</span><output id="diagAvSync">--</output></div>
+        <div><span>Sessions</span><output id="diagSessions">0</output></div>
+        <div><span>Auto Level</span><output id="diagAutoLevel">0.00 dB</output></div>
+        <div><span>Spark Gain</span><output id="diagSparkGain">+0.000 dB</output></div>
+        <div><span>Impact Branch</span><output id="diagImpact">0.000</output></div>
+        <div><span>Comp Escape</span><output id="diagCompEscape">0%</output></div>
+        <div><span>Seam</span><output id="diagSeam">0.000</output></div>
+        <div><span>Valley</span><output id="diagValley">0.000 dB</output></div>
+        <div><span>Edge</span><output id="diagEdge">0.0000</output></div>
+        <div><span>Voice</span><output id="diagVoice">0.000</output></div>
+        <div><span>Headphone</span><output id="diagHeadphone">--</output></div>
+        <div><span>Orbit</span><output id="diagOrbit">100 / L0</output></div>
+        <div><span>Effective Gain</span><output id="diagEffectiveGain">0.000 dB</output></div>
+        <div><span>Safety Trim</span><output id="diagTrim">0.00 dB</output></div>
+        <div><span>Limiter GR</span><output id="diagLimiter">--</output></div>
+        <div><span>Supervisor</span><output id="diagSupervisor">--</output></div>
+        <div><span>Scene</span><output id="diagScene">--</output></div>
+        <div><span>Device</span><output id="diagDevice">--</output></div>
+        <div><span>3D Spatial</span><output id="diagSpatialOn">OFF</output></div>
+        <div><span>Spatial Mode</span><output id="diagSpatialMode">--</output></div>
+        <div><span>Spatial Output</span><output id="diagSpatialOutput">--</output></div>
+        <div><span>Spatial Profile</span><output id="diagSpatialProfile">--</output></div>
+        <div><span>Spatial Channels / SR</span><output id="diagSpatialIo">--</output></div>
+        <div><span>Spatial HRTF</span><output id="diagSpatialHrtf">--</output></div>
+        <div><span>Spatial Strength</span><output id="diagSpatialStrength">--</output></div>
+        <div><span>HRTF Cue Preserve</span><output id="diagSpatialCuePreserve">--</output></div>
+        <div><span>Spatial Width/Depth</span><output id="diagSpatialShape">--</output></div>
+        <div><span>Spatial Elevation</span><output id="diagSpatialElevation">--</output></div>
+        <div><span>Spatial ITD/ILD</span><output id="diagSpatialCues">--</output></div>
+        <div><span>Spatial Reflection</span><output id="diagSpatialReflection">--</output></div>
+        <div><span>Spatial Crosstalk</span><output id="diagSpatialCrosstalk">--</output></div>
+        <div><span>Spatial Added Latency</span><output id="diagSpatialLatency">--</output></div>
+        <div><span>Spatial Gain Comp</span><output id="diagSpatialGain">--</output></div>
+        <div><span>Spatial Headroom</span><output id="diagSpatialHeadroom">--</output></div>
+        <div><span>Spatial Fallback</span><output id="diagSpatialFallback">--</output></div>
+        <div><span>Virtual Amp</span><output id="diagAmpState">--</output></div>
+        <div><span>Amp Backend</span><output id="diagAmpBackend">--</output></div>
+        <div><span>Amp Reference Power</span><output id="diagAmpPower">--</output></div>
+        <div><span>Amp THD+N Add</span><output id="diagAmpThdn">--</output></div>
+        <div><span>Amp S/N</span><output id="diagAmpSnr">--</output></div>
+        <div><span>Amp Added Latency</span><output id="diagAmpLatency">--</output></div>
+        <div><span>Amp Fault</span><output id="diagAmpFault">none</output></div>
+      </section>
+      <p class="note">L/R相関は診断用です。mono-likeは「一定時間ほぼ同一波形だった」という推定で、音源そのものが常にモノラルだと断定する表示ではありません。SpatialのStrength/Width/Depth/ITD/ILD/Reflection/Headroomは設定から導出した制御値です。Peak/RMS/L/R相関は既存Diagnosticsの実測値です。Spatial Added Latencyの「0 ms*」は全信号を遅延させる直列遅延が無いという構成値で、実機I/O遅延の測定値ではありません。</p>
+    </details>
+
+    <p class="note">Adaptive Safetyは通常時は0 dBで音を変えず、Limiterが継続的に働く場合のみ前段を少し下げて潰れすぎを防ぎます。Hi-Resは96kHz AudioContextを要求し、倍音処理を4x oversamplingします。ブラウザはPCM処理のため真のDSD 1-bit再生ではありません。Detail/Reality/Frequency Fillは元音源に無い情報を復元せず、聴感を補正します。ノイズ抑制は静かな区間を中心に働きます。</p>
+  </main>
+  <script src="modular-core.js"></script><script src="dsp-core.js"></script><script src="adaptive-v29.js"></script><script src="headphone-profiles.js"></script><script src="spatial-device-profiles.js"></script><script src="popup.js"></script>
+</body>
+</html>

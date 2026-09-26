@@ -1,0 +1,9 @@
+YURIKA Audio 3.3.2 - Integrity Numeric Stability
+
+- Root cause: default Integrity transparent mode used a 3.5 Hz second-order Biquad. At 96 kHz its near-cancelling coefficients are vulnerable to float32 numerical residual; the deep-tap browser benchmark showed the large THD+N change exactly at postIntegrity.
+- Transparent mode is now a true unity path (effective DC block 0 Hz).
+- network-stable uses a normalized first-order 3.5 Hz IIR DC blocker.
+- ground-reference and stabilizer use a normalized first-order 5.0 Hz IIR DC blocker.
+- Pressure/Adaptive Safety behavior from 3.3.1 is unchanged.
+- Self-DAP, HRTF, Spatial, Virtual Amp, compressor and limiter coefficients are unchanged.
+- Added algorithmic latency: 0 frames.
