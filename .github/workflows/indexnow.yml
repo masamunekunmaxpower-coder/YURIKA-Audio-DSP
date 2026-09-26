@@ -1,0 +1,61 @@
+name: IndexNow notify
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notify-indexnow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Wait for Pages key file
+        shell: bash
+        run: |
+          set -e
+          KEY="9e0ccff37de58485369e167d020011ea"
+          KEY_URL="https://masamunekunmaxpower-coder.github.io/YURIKA-Audio-DSP/9e0ccff37de58485369e167d020011ea.txt"
+          for i in {1..60}; do
+            BODY="$(curl -fsSL "$KEY_URL" || true)"
+            if [ "$BODY" = "$KEY" ]; then
+              echo "IndexNow key is live."
+              exit 0
+            fi
+            echo "Waiting for GitHub Pages deployment... ($i/60)"
+            sleep 10
+          done
+          echo "IndexNow key file did not become available in time."
+          exit 1
+
+      - name: Submit YURIKA URLs to IndexNow
+        shell: bash
+        run: |
+          cat > indexnow.json <<'JSON'
+          {
+            "host": "masamunekunmaxpower-coder.github.io",
+            "key": "9e0ccff37de58485369e167d020011ea",
+            "keyLocation": "https://masamunekunmaxpower-coder.github.io/YURIKA-Audio-DSP/9e0ccff37de58485369e167d020011ea.txt",
+            "urlList": [
+              "https://masamunekunmaxpower-coder.github.io/YURIKA-Audio-DSP/",
+              "https://masamunekunmaxpower-coder.github.io/YURIKA-Audio-DSP/ja.html",
+              "https://masamunekunmaxpower-coder.github.io/YURIKA-Audio-DSP/en.html",
+              "https://masamunekunmaxpower-coder.github.io/YURIKA-Audio-DSP/ko.html"
+            ]
+          }
+          JSON
+
+          code="$(curl -sS -o response.txt -w "%{http_code}"             -H "Content-Type: application/json; charset=utf-8"             -X POST             --data-binary @indexnow.json             https://api.indexnow.org/IndexNow)"
+
+          cat response.txt || true
+          echo "HTTP status: $code"
+
+          case "$code" in
+            200|202) exit 0 ;;
+            *) exit 1 ;;
+          esac
