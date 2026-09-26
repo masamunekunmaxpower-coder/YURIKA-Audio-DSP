@@ -1,0 +1,13 @@
+{
+  "name": "YURIKA Audio DSP",
+  "short_name": "YURIKA DSP",
+  "description": "Unofficial TRICKCAL fan work and real-time Chrome audio DSP for YouTube and music listening.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4ead7",
+  "theme_color": "#fff0b7",
+  "icons": [
+    {"src":"assets/favicon-96.png","sizes":"96x96","type":"image/png"},
+    {"src":"assets/favicon-192.png","sizes":"192x192","type":"image/png"}
+  ]
+}
